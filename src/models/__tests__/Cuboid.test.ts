@@ -23,6 +23,7 @@ describe.each([
       height,
       depth,
       bagId: bag.id,
+      volume,
     });
   });
 
