@@ -184,6 +184,7 @@ describe('cuboid update', () => {
         height: 5,
         depth: 5,
         bagId: bag.id,
+        volume: 125,
       })
     );
     cuboid = await Cuboid.query().insert(
@@ -192,45 +193,98 @@ describe('cuboid update', () => {
         height: 4,
         depth: 4,
         bagId: bag.id,
+        volume: 64,
       })
     );
   });
 
-  it('should succeed to update the cuboid', () => {
-    const [newWidth, newHeight, newDepth] = [5, 5, 5];
-    const response = { body: {} as Cuboid, status: HttpStatus.OK };
-    cuboid = response.body;
+  it('should succeed to update the cuboid', async () => {
+    const [newWidth, newHeight, newDepth] = [4, 4, 4];
+    const response = await request(server)
+      .patch(urlJoin('/cuboids/', cuboid.id.toString()))
+      .send({
+        width: newWidth,
+        height: newHeight,
+        depth: newDepth,
+        bagId: bag?.id,
+      });
 
     expect(response.status).toBe(HttpStatus.OK);
-    expect(cuboid.width).toBe(newWidth);
-    expect(cuboid.height).toBe(newHeight);
-    expect(cuboid.depth).toBe(newDepth);
-    expect(cuboid.bag?.id).toBe(bag.id);
+    expect(response.body.width).toBe(newWidth);
+    expect(response.body.height).toBe(newHeight);
+    expect(response.body.depth).toBe(newDepth);
   });
 
-  it('should fail to update if insufficient capacity and return 422 status code', () => {
-    const [newWidth, newHeight, newDepth] = [6, 6, 6];
-    const response = {
-      body: {} as Cuboid,
-      status: HttpStatus.UNPROCESSABLE_ENTITY,
-    };
+  it('should fail to update if bag not found', async () => {
+    const [newWidth, newHeight, newDepth] = [1, 1, 1];
+    const response = await request(server)
+      .patch(urlJoin('/cuboids/', bag.id.toString()))
+      .send({
+        width: newWidth,
+        height: newHeight,
+        depth: newDepth,
+        bagId: 0,
+      });
 
     expect(response.status).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+  });
+
+  it('should fail to update if insufficient capacity and return 422 status code', async () => {
+    const [newWidth, newHeight, newDepth, newVolume] = [6, 6, 6, 64];
+    const response = await request(server)
+      .patch(urlJoin('/cuboids/', cuboid.id.toString()))
+      .send({
+        width: newWidth,
+        height: newHeight,
+        depth: newDepth,
+        volume: newVolume,
+        bagId: bag?.id,
+      });
+
+    expect(response.status).toBe(HttpStatus.UNPROCESSABLE_ENTITY);
+    expect(response.body.message).toBe('Insufficient capacity in bag');
     expect(response.body.width).not.toBe(newWidth);
     expect(response.body.height).not.toBe(newHeight);
     expect(response.body.depth).not.toBe(newDepth);
+    expect(response.body.volume).not.toBe(newVolume);
   });
 });
 
 describe('cuboid delete', () => {
-  it('should delete the cuboid', () => {
-    const response = { status: HttpStatus.OK };
+  let bag: Bag;
+  let cuboid: Cuboid;
+
+  beforeAll(async () => {
+    bag = await Bag.query().insert(
+      factories.bag.build({
+        volume: 250,
+        title: 'A bag',
+      })
+    );
+    cuboid = await Cuboid.query().insert(
+      factories.cuboid.build({
+        width: 4,
+        height: 4,
+        depth: 4,
+        bagId: bag.id,
+        volume: 64,
+      })
+    );
+  });
+
+  // eslint-disable-next-line jest/no-test-callback
+  it('should delete the cuboid', async () => {
+    const response = await request(server).delete(
+      urlJoin('/cuboids', cuboid.id.toString())
+    );
 
     expect(response.status).toBe(HttpStatus.OK);
   });
 
-  it('should not delete and return 404 status code when cuboids doesnt exists', () => {
-    const response = { status: HttpStatus.NOT_FOUND };
+  it('should not delete and return 404 status code when cuboids doesnt exists', async () => {
+    const response = await request(server).delete(
+      urlJoin('/cuboids', cuboid.id.toString())
+    );
 
     expect(response.status).toBe(HttpStatus.NOT_FOUND);
   });
